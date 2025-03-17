@@ -10,6 +10,10 @@ keywords = ["rustdoc", "markdown", "documentation", "converter", "api"]
 categories = ["development-tools::documentation", "text-processing", "command-line-utilities"]
 authors = ["Ari Seyhun <dev@tqwewe.com>", "Claude AI (Anthropic)"]
 
+[[bin]]
+name = "rustdoc-md"
+path = "src/main.rs"
+
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
 eyre = "0.6.12"
