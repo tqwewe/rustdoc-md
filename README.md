@@ -15,11 +15,6 @@ Convert Rust documentation JSON into clean, organized Markdown.
 - Formats code examples, documentation, and API details for optimal readability
 - Handles re-exports, implementations, and other specialized items
 
-## Installation
-
-```bash
-cargo install rustdoc-md
-```
 
 ## Usage
 
