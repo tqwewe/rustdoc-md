@@ -15,12 +15,11 @@
 //! [1]: https://rust-lang.zulipchat.com/#narrow/channel/266220-t-rustdoc/topic/rustc-hash.20and.20performance.20of.20rustdoc-types/near/474855731
 //! [2]: https://crates.io/crates/rustc-hash
 
-#[cfg(not(feature = "rustc-hash"))]
-use std::collections::HashMap;
+use std::collections::HashMap; // Ensure this is the one used
 use std::path::PathBuf;
 
-#[cfg(feature = "rustc-hash")]
-use rustc_hash::FxHashMap as HashMap;
+// #[cfg(feature = "rustc-hash")] // This attribute is removed
+// use rustc_hash::FxHashMap as HashMap; // This import is removed
 use serde::{Deserialize, Serialize};
 
 pub type FxHashMap<K, V> = HashMap<K, V>; // re-export for use in src/librustdoc
