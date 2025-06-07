@@ -1,6 +1,6 @@
 //! Rustdoc's JSON output interface
 //!
-//! These types are the public API exposed through the `--output-format json` flag. The [`Crate`]
+//! These types are the public API exposed through the `--output-format json` flag. The [`ParsedCrateDoc`]
 //! struct is the root of the JSON blob and all other items are contained within.
 //!
 //! We expose a `rustc-hash` feature that is disabled by default. This feature switches the
@@ -27,7 +27,7 @@ pub type FxHashMap<K, V> = HashMap<K, V>; // re-export for use in src/librustdoc
 /// The version of JSON output that this crate represents.
 ///
 /// This integer is incremented with every breaking change to the API,
-/// and is returned along with the JSON blob as [`Crate::format_version`].
+/// and is returned along with the JSON blob as [`ParsedCrateDoc::format_version`].
 /// Consuming code should assert that this value matches the format version(s) that it supports.
 pub const FORMAT_VERSION: u32 = 43;
 
@@ -37,7 +37,7 @@ pub const FORMAT_VERSION: u32 = 43;
 /// about the language items in the local crate, as well as info about external items to allow
 /// tools to find or link to them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Crate {
+pub struct ParsedCrateDoc {
     /// The id of the root [`Module`] item of the local crate.
     pub root: Id,
     /// The version string given to `--crate-version`, if any.
@@ -314,7 +314,7 @@ pub enum AssocItemConstraintKind {
 
 /// An opaque identifier for an item.
 ///
-/// It can be used to lookup in [`Crate::index`] or [`Crate::paths`] to resolve it
+/// It can be used to lookup in [`ParsedCrateDoc::index`] or [`ParsedCrateDoc::paths`] to resolve it
 /// to an [`Item`].
 ///
 /// Id's are only valid within a single JSON blob. They cannot be used to

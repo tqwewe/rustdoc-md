@@ -5,70 +5,57 @@ pub mod render_details;
 pub mod render_signatures;
 pub mod rustdoc_json_types;
 
-use render_core::{ResolvedItemInfo, render_item_page}; // This import is fine now
-use rustdoc_json_types::*; // process_items is now render_item_list
+use rustdoc_json_types::*;
+use std::{fs, io, path::Path};
 
-pub use multi_file::generate as rustdoc_json_to_fs;
 
-pub fn rustdoc_json_to_markdown(data: Crate) -> String {
-    let mut output = String::new();
-
-    // Add crate header and basic info
-    output.push_str("# Crate Documentation\n\n");
-
-    if let Some(version) = &data.crate_version {
-        output.push_str(&format!("**Version:** {}\n\n", version));
+impl ParsedCrateDoc {
+    /// Loads a `ParsedCrateDoc` from a rustdoc JSON file.
+    pub fn from_file(path: &Path) -> eyre::Result<Self> {
+        let file = fs::File::open(path)?;
+        let reader = io::BufReader::new(file);
+        let krate: ParsedCrateDoc = serde_json::from_reader(reader)?;
+        Ok(krate)
     }
 
-    output.push_str(&format!("**Format Version:** {}\n\n", data.format_version));
+    /// Generates a single Markdown string documenting the entire crate.
+    ///
+    /// This is suitable for direct output or further processing.
+    pub fn to_string(&self) -> String {
+        let mut output = String::new();
 
-    // Process the root module to start
-    let root_id = data.root;
-    if let Some(root_item) = data.index.get(&root_id) {
-        render_module_items_recursively(&mut output, root_item, &data, 1);
-    }
+        // Add crate header and basic info
+        output.push_str("# Crate Documentation\n\n");
 
-    output
-}
-
-/// Recursively renders a module and its public contents for single-file output.
-fn render_module_items_recursively(
-    output: &mut String,
-    module_item: &Item,
-    data: &Crate,
-    level: usize,
-) {
-    // The link resolver for single-file mode generates anchor links.
-    let link_resolver = |target_id: &Id| -> String {
-        let summary = data
-            .paths
-            .get(target_id)
-            .expect("Link target must have a path");
-        let target_item = data.index.get(target_id).unwrap();
-        let anchor = path_utils::get_item_anchor(target_item, summary);
-        let name = summary.path.last().unwrap();
-        format!("[`{}`](#{})", name, anchor)
-    };
-
-    let module_info = ResolvedItemInfo {
-        original_item: module_item,
-        effective_name: module_item.name.clone(),
-        reexport_source_canonical_path: None,
-    };
-
-    // Render the current module's page content (title, docs, item list).
-    render_item_page(output, &module_info, data, level, link_resolver);
-
-    // Now, recursively render the full content of any public submodules.
-    if let ItemEnum::Module(module_details) = &module_item.inner {
-        for &item_id in &module_details.items {
-            if let Some(item) = data.index.get(&item_id) {
-                if item.visibility == Visibility::Public
-                    && matches!(item.inner, ItemEnum::Module(_))
-                {
-                    render_module_items_recursively(output, item, data, level + 1);
-                }
-            }
+        if let Some(version) = &self.crate_version {
+            output.push_str(&format!("**Version:** {}\n\n", version));
         }
+
+        output.push_str(&format!("**Format Version:** {}\n\n", self.format_version));
+
+        // Process the root module to start
+        let root_id = self.root;
+        if let Some(root_item) = self.index.get(&root_id) {
+            crate::render_core::render_module_items_recursively(&mut output, root_item, self, 1);
+        }
+
+        output
+    }
+
+    /// Generates a single Markdown file documenting the entire crate.
+    ///
+    /// This function creates parent directories for `output_file` if they don't exist.
+    pub fn to_single_file(&self, output_file: &Path) -> eyre::Result<()> {
+        if let Some(parent_dir) = output_file.parent() {
+            fs::create_dir_all(parent_dir)?;
+        }
+        let md = self.to_string();
+        fs::write(output_file, md)?;
+        Ok(())
+    }
+
+    /// Generates a hierarchical directory structure of Markdown files.
+    pub fn to_multi_file(&self, output_dir: &Path) -> eyre::Result<()> {
+        multi_file::generate(self, output_dir)
     }
 }

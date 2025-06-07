@@ -39,7 +39,7 @@ pub fn get_item_kind_string(item_enum: &ItemEnum) -> &'static str {
 pub fn render_item_list<F>(
     output: &mut String,
     item_ids: &[Id],
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -226,7 +226,7 @@ pub fn render_item_list<F>(
 pub fn render_item_page<F>(
     output: &mut String,
     resolved_info: &ResolvedItemInfo,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -381,7 +381,7 @@ pub fn render_item_page<F>(
 pub fn render_docs_with_links<F>(
     docs: &str,
     links: &HashMap<String, Id>,
-    _data: &Crate,
+    _data: &ParsedCrateDoc,
     link_resolver: F,
 ) -> String
 where
@@ -408,4 +408,48 @@ where
     });
 
     result.into_owned()
+}
+
+/// Recursively renders a module and its public contents for single-file output.
+/// This function is primarily used by `Crate::to_string()` for generating
+/// a single, self-contained Markdown document.
+pub fn render_module_items_recursively(
+    output: &mut String,
+    module_item: &Item,
+    krate: &ParsedCrateDoc,
+    level: usize,
+) {
+    // The link resolver for single-file mode generates anchor links.
+    let link_resolver = |target_id: &Id| -> String {
+        let summary = krate
+            .paths
+            .get(target_id)
+            .expect("Link target must have a path");
+        let target_item = krate.index.get(target_id).unwrap();
+        let anchor = crate::path_utils::get_item_anchor(target_item, summary);
+        let name = summary.path.last().unwrap();
+        format!("[`{}`](#{})", name, anchor)
+    };
+
+    let module_info = ResolvedItemInfo {
+        original_item: module_item,
+        effective_name: module_item.name.clone(),
+        reexport_source_canonical_path: None,
+    };
+
+    // Render the current module's page content (title, docs, item list).
+    render_item_page(output, &module_info, krate, level, link_resolver);
+
+    // Now, recursively render the full content of any public submodules.
+    if let ItemEnum::Module(module_details) = &module_item.inner {
+        for &item_id in &module_details.items {
+            if let Some(item) = krate.index.get(&item_id) {
+                if item.visibility == Visibility::Public
+                    && matches!(item.inner, ItemEnum::Module(_))
+                {
+                    render_module_items_recursively(output, item, krate, level + 1);
+                }
+            }
+        }
+    }
 }

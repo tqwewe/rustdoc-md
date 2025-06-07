@@ -1,6 +1,6 @@
 use crate::rustdoc_json_types::*;
 
-pub fn format_item_signature(output: &mut String, item: &Item, data: &Crate) {
+pub fn format_item_signature(output: &mut String, item: &Item, data: &ParsedCrateDoc) {
     // Format visibility
     match &item.visibility {
         Visibility::Public => output.push_str("pub "),
@@ -617,7 +617,7 @@ pub fn format_item_signature(output: &mut String, item: &Item, data: &Crate) {
     }
 }
 
-pub fn format_generics(output: &mut String, generics: &Generics, data: &Crate) {
+pub fn format_generics(output: &mut String, generics: &Generics, data: &ParsedCrateDoc) {
     if generics.params.is_empty() {
         return;
     }
@@ -675,7 +675,7 @@ pub fn format_generics(output: &mut String, generics: &Generics, data: &Crate) {
     output.push('>');
 }
 
-pub fn format_where_clause(output: &mut String, predicates: &[WherePredicate], data: &Crate) {
+pub fn format_where_clause(output: &mut String, predicates: &[WherePredicate], data: &ParsedCrateDoc) {
     if predicates.is_empty() {
         return;
     }
@@ -742,7 +742,7 @@ pub fn format_where_clause(output: &mut String, predicates: &[WherePredicate], d
     }
 }
 
-pub fn format_bounds(output: &mut String, bounds: &[GenericBound], data: &Crate) {
+pub fn format_bounds(output: &mut String, bounds: &[GenericBound], data: &ParsedCrateDoc) {
     for (i, bound) in bounds.iter().enumerate() {
         match bound {
             GenericBound::TraitBound {
@@ -807,7 +807,7 @@ pub fn format_bounds(output: &mut String, bounds: &[GenericBound], data: &Crate)
     }
 }
 
-pub fn format_generic_args(output: &mut String, args: &GenericArgs, data: &Crate) {
+pub fn format_generic_args(output: &mut String, args: &GenericArgs, data: &ParsedCrateDoc) {
     match args {
         GenericArgs::AngleBracketed { args, constraints } => {
             if args.is_empty() && constraints.is_empty() {
@@ -887,7 +887,7 @@ pub fn format_generic_args(output: &mut String, args: &GenericArgs, data: &Crate
     }
 }
 
-pub fn format_type(ty: &Type, data: &Crate) -> String {
+pub fn format_type(ty: &Type, data: &ParsedCrateDoc) -> String {
     let mut output = String::new();
 
     match ty {

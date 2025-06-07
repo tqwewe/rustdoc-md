@@ -5,19 +5,20 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub fn generate(krate: &Crate, output_dir: &Path) -> eyre::Result<()> {
+pub fn generate(krate: &ParsedCrateDoc, output_dir: &Path) -> eyre::Result<()> {
+    fs::create_dir_all(output_dir)?; // Ensure the root output directory exists
     let generator = Generator::new(krate, output_dir)?;
     generator.run()
 }
 
 struct Generator<'a> {
-    krate: &'a Crate,
+    krate: &'a ParsedCrateDoc,
     // output_dir: &'a Path, // No longer needed as a field
     fs_paths: HashMap<Id, PathBuf>, // Stores the absolute path for each item's file
 }
 
 impl<'a> Generator<'a> {
-    fn new(krate: &'a Crate, output_dir_param: &'a Path) -> eyre::Result<Self> {
+    fn new(krate: &'a ParsedCrateDoc, output_dir_param: &'a Path) -> eyre::Result<Self> {
         let mut fs_paths = HashMap::new();
         // Pre-calculate filesystem paths for all items that have an ItemSummary.
         // These are typically items that can be linked to or have their own page.

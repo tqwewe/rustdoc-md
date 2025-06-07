@@ -51,7 +51,7 @@ pub fn get_item_anchor(item: &Item, summary: &ItemSummary) -> String {
 }
 
 /// Constructs the full filesystem path for an item in multi-file mode.
-pub fn get_item_fs_path(krate: &Crate, id: &Id, base_dir: &Path) -> PathBuf {
+pub fn get_item_fs_path(krate: &ParsedCrateDoc, id: &Id, base_dir: &Path) -> PathBuf {
     let summary = krate
         .paths
         .get(id)

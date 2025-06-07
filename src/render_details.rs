@@ -6,7 +6,7 @@ use crate::rustdoc_json_types::*; // Ensure Id is in scope for Fn(&Id)
 pub fn process_module_details<F>(
     output: &mut String,
     module: &Module,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -28,7 +28,7 @@ pub fn process_module_details<F>(
 pub fn process_struct_details<F>(
     output: &mut String,
     struct_: &Struct,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -227,7 +227,7 @@ pub fn process_struct_details<F>(
 pub fn process_enum_details<F>(
     output: &mut String,
     enum_: &Enum,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -504,7 +504,7 @@ pub fn process_enum_details<F>(
 pub fn process_union_details<F>(
     output: &mut String,
     union_: &Union,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -646,7 +646,7 @@ pub fn process_union_details<F>(
 pub fn process_trait_details<F>(
     output: &mut String,
     trait_: &Trait,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -747,7 +747,7 @@ pub fn process_trait_details<F>(
 pub fn process_impl_details<F>(
     output: &mut String,
     impl_: &Impl,
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     link_resolver: F,
 ) where
@@ -871,7 +871,7 @@ pub fn process_impl_details<F>(
 fn render_associated_item_group<F>(
     output: &mut String,
     item_ids: &[Id],
-    data: &Crate,
+    data: &ParsedCrateDoc,
     level: usize,
     _group_prefix: &str,
     link_resolver: F,
