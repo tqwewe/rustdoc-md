@@ -271,18 +271,8 @@ pub fn render_item_page<F>(
         // Handle nameless items like impls
         match &item.inner {
             ItemEnum::Impl(impl_details) => {
-                // *** START CHANGE (Blanket Impl Handling from fix_plan.md) ***
-                // Check for blanket impls and render a collapsed summary instead of the full block
-                if impl_details.blanket_impl.is_some() {
-                    output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
-                    output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
-                    if let Some(trait_) = &impl_details.trait_ {
-                        output.push_str(&format!("- `{}`\n", trait_.path));
-                    }
-                    output.push_str("\n</details>\n\n");
-                    return; // Stop processing this item further
-                }
-                // *** END CHANGE ***
+                // The special handling for blanket_impl.is_some() has been removed from here.
+                // It's now handled by the calling functions in render_details.rs to consolidate them.
 
                 if let Some(trait_) = &impl_details.trait_ {
                     output.push_str(&format!(

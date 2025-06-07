@@ -115,17 +115,47 @@ pub fn process_struct_details<F>(
     }
 
     if !struct_.impls.is_empty() {
-        output.push_str(&format!(
-            "{} Implementations\n\n",
-            "#".repeat(heading_level)
-        ));
+        let mut non_blanket_impls_info = Vec::new();
+        let mut blanket_impl_traits = Vec::new();
+
         for &impl_id in &struct_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
-                let resolved_impl_info = ResolvedItemInfo {
-                    original_item: impl_item_ref,
-                    effective_name: None, // Impls are often nameless in this context
-                    reexport_source_canonical_path: None,
-                };
+                if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
+                    if impl_details.blanket_impl.is_some() {
+                        if let Some(trait_) = &impl_details.trait_ {
+                            blanket_impl_traits.push(trait_.path.clone());
+                        }
+                    } else {
+                        non_blanket_impls_info.push(ResolvedItemInfo {
+                            original_item: impl_item_ref,
+                            effective_name: None, // Impls are often nameless in this context
+                            reexport_source_canonical_path: None,
+                        });
+                    }
+                } else {
+                    // This case implies the item is not an Impl, or data is malformed.
+                    // Treat as a non-blanket impl for rendering to be safe.
+                    non_blanket_impls_info.push(ResolvedItemInfo {
+                        original_item: impl_item_ref,
+                        effective_name: None,
+                        reexport_source_canonical_path: None,
+                    });
+                }
+            }
+        }
+
+        blanket_impl_traits.sort();
+        blanket_impl_traits.dedup();
+
+        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+            output.push_str(&format!(
+                "{} Implementations\n\n",
+                "#".repeat(heading_level)
+            ));
+        }
+
+        if !non_blanket_impls_info.is_empty() {
+            for resolved_impl_info in non_blanket_impls_info {
                 crate::render_core::render_item_page(
                     output,
                     &resolved_impl_info,
@@ -134,6 +164,15 @@ pub fn process_struct_details<F>(
                     link_resolver,
                 );
             }
+        }
+
+        if !blanket_impl_traits.is_empty() {
+            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
+            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
+            for trait_path in blanket_impl_traits {
+                output.push_str(&format!("- `{}`\n", trait_path));
+            }
+            output.push_str("\n</details>\n\n");
         }
     }
 }
@@ -314,17 +353,45 @@ pub fn process_enum_details<F>(
     }
 
     if !enum_.impls.is_empty() {
-        output.push_str(&format!(
-            "{} Implementations\n\n",
-            "#".repeat(heading_level)
-        ));
+        let mut non_blanket_impls_info = Vec::new();
+        let mut blanket_impl_traits = Vec::new();
+
         for &impl_id in &enum_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
-                let resolved_impl_info = ResolvedItemInfo {
-                    original_item: impl_item_ref,
-                    effective_name: None,
-                    reexport_source_canonical_path: None,
-                };
+                if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
+                    if impl_details.blanket_impl.is_some() {
+                        if let Some(trait_) = &impl_details.trait_ {
+                            blanket_impl_traits.push(trait_.path.clone());
+                        }
+                    } else {
+                        non_blanket_impls_info.push(ResolvedItemInfo {
+                            original_item: impl_item_ref,
+                            effective_name: None,
+                            reexport_source_canonical_path: None,
+                        });
+                    }
+                } else {
+                    non_blanket_impls_info.push(ResolvedItemInfo {
+                        original_item: impl_item_ref,
+                        effective_name: None,
+                        reexport_source_canonical_path: None,
+                    });
+                }
+            }
+        }
+
+        blanket_impl_traits.sort();
+        blanket_impl_traits.dedup();
+
+        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+            output.push_str(&format!(
+                "{} Implementations\n\n",
+                "#".repeat(heading_level)
+            ));
+        }
+
+        if !non_blanket_impls_info.is_empty() {
+            for resolved_impl_info in non_blanket_impls_info {
                 crate::render_core::render_item_page(
                     output,
                     &resolved_impl_info,
@@ -333,6 +400,15 @@ pub fn process_enum_details<F>(
                     link_resolver,
                 );
             }
+        }
+
+        if !blanket_impl_traits.is_empty() {
+            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
+            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
+            for trait_path in blanket_impl_traits {
+                output.push_str(&format!("- `{}`\n", trait_path));
+            }
+            output.push_str("\n</details>\n\n");
         }
     }
 }
@@ -378,17 +454,45 @@ pub fn process_union_details<F>(
     output.push('\n');
 
     if !union_.impls.is_empty() {
-        output.push_str(&format!(
-            "{} Implementations\n\n",
-            "#".repeat(heading_level)
-        ));
+        let mut non_blanket_impls_info = Vec::new();
+        let mut blanket_impl_traits = Vec::new();
+
         for &impl_id in &union_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
-                let resolved_impl_info = ResolvedItemInfo {
-                    original_item: impl_item_ref,
-                    effective_name: None,
-                    reexport_source_canonical_path: None,
-                };
+                if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
+                    if impl_details.blanket_impl.is_some() {
+                        if let Some(trait_) = &impl_details.trait_ {
+                            blanket_impl_traits.push(trait_.path.clone());
+                        }
+                    } else {
+                        non_blanket_impls_info.push(ResolvedItemInfo {
+                            original_item: impl_item_ref,
+                            effective_name: None,
+                            reexport_source_canonical_path: None,
+                        });
+                    }
+                } else {
+                    non_blanket_impls_info.push(ResolvedItemInfo {
+                        original_item: impl_item_ref,
+                        effective_name: None,
+                        reexport_source_canonical_path: None,
+                    });
+                }
+            }
+        }
+
+        blanket_impl_traits.sort();
+        blanket_impl_traits.dedup();
+
+        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+            output.push_str(&format!(
+                "{} Implementations\n\n",
+                "#".repeat(heading_level)
+            ));
+        }
+
+        if !non_blanket_impls_info.is_empty() {
+            for resolved_impl_info in non_blanket_impls_info {
                 crate::render_core::render_item_page(
                     output,
                     &resolved_impl_info,
@@ -397,6 +501,15 @@ pub fn process_union_details<F>(
                     link_resolver,
                 );
             }
+        }
+
+        if !blanket_impl_traits.is_empty() {
+            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
+            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
+            for trait_path in blanket_impl_traits {
+                output.push_str(&format!("- `{}`\n", trait_path));
+            }
+            output.push_str("\n</details>\n\n");
         }
     }
 }
