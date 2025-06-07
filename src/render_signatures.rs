@@ -391,9 +391,8 @@ pub fn format_item_signature(output: &mut String, item: &Item, data: &Crate) {
 
                 output.push_str(" for ");
             } else {
-                 output.push(' '); // Space after "impl<...>" for inherent impls
+                output.push(' '); // Space after "impl<...>" for inherent impls
             }
-
 
             // For type
             output.push_str(&format_type(&impl_.for_, data));
@@ -470,7 +469,7 @@ pub fn format_item_signature(output: &mut String, item: &Item, data: &Crate) {
                             }
                             output.push_str(")");
                         }
-                         output.push(']');
+                        output.push(']');
                     }
                 }
                 output.push_str(&format!(

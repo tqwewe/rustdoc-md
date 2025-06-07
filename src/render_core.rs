@@ -10,7 +10,7 @@ pub struct ResolvedItemInfo<'a> {
     pub reexport_source_canonical_path: Option<String>, // Canonical path of the original item, if re-exported
 }
 
-pub fn get_item_kind_string(item_enum: &ItemEnum) -> &str {
+pub fn get_item_kind_string(item_enum: &ItemEnum) -> &'static str {
     match item_enum {
         ItemEnum::Module(_) => "Module",
         ItemEnum::Struct(_) => "Struct",
@@ -36,7 +36,15 @@ pub fn get_item_kind_string(item_enum: &ItemEnum) -> &str {
     }
 }
 
-pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: usize) {
+pub fn render_item_list<F>(
+    output: &mut String,
+    item_ids: &[Id],
+    data: &Crate,
+    level: usize,
+    link_resolver: F,
+) where
+    F: Fn(&Id) -> String + Copy,
+{
     // Cap heading level at 6 (maximum valid Markdown heading level)
     let heading_level = std::cmp::min(level, 6);
 
@@ -51,15 +59,23 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
                     if use_item.is_glob {
                         if let Some(target_module_id) = use_item.id {
                             if let Some(target_module_item) = data.index.get(&target_module_id) {
-                                if let ItemEnum::Module(target_module_details) = &target_module_item.inner {
+                                if let ItemEnum::Module(target_module_details) =
+                                    &target_module_item.inner
+                                {
                                     for &glob_item_id in &target_module_details.items {
                                         if let Some(glob_item) = data.index.get(&glob_item_id) {
                                             if glob_item.visibility == Visibility::Public {
-                                                let canonical_path = data.paths.get(&glob_item.id).map(|s| s.path.join("::")).unwrap_or_default();
+                                                let canonical_path = data
+                                                    .paths
+                                                    .get(&glob_item.id)
+                                                    .map(|s| s.path.join("::"))
+                                                    .unwrap_or_default();
                                                 all_resolved_items.push(ResolvedItemInfo {
                                                     original_item: glob_item,
                                                     effective_name: glob_item.name.clone(),
-                                                    reexport_source_canonical_path: Some(canonical_path),
+                                                    reexport_source_canonical_path: Some(
+                                                        canonical_path,
+                                                    ),
                                                 });
                                             }
                                         }
@@ -71,7 +87,11 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
                         // Named re-export
                         if let Some(target_id) = use_item.id {
                             if let Some(target_item) = data.index.get(&target_id) {
-                                let canonical_path = data.paths.get(&target_item.id).map(|s| s.path.join("::")).unwrap_or_default();
+                                let canonical_path = data
+                                    .paths
+                                    .get(&target_item.id)
+                                    .map(|s| s.path.join("::"))
+                                    .unwrap_or_default();
                                 all_resolved_items.push(ResolvedItemInfo {
                                     original_item: target_item,
                                     effective_name: Some(use_item.name.clone()),
@@ -98,75 +118,140 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
     let mut traits: Vec<&ResolvedItemInfo<'_>> = Vec::new();
     let mut functions: Vec<&ResolvedItemInfo<'_>> = Vec::new();
     let mut constants: Vec<&ResolvedItemInfo<'_>> = Vec::new();
-    let mut macros: Vec<&ResolvedItemInfo<'_>> = Vec::new();
+    let mut macros_vec: Vec<&ResolvedItemInfo<'_>> = Vec::new(); // Renamed to avoid conflict
 
     // The existing categorization logic is good.
     for resolved_info in &all_resolved_items {
         match &resolved_info.original_item.inner {
             ItemEnum::Module(_) => modules.push(resolved_info),
-            ItemEnum::Struct(_) | ItemEnum::Enum(_) | ItemEnum::Union(_) | ItemEnum::TypeAlias(_) => types.push(resolved_info),
+            ItemEnum::Struct(_)
+            | ItemEnum::Enum(_)
+            | ItemEnum::Union(_)
+            | ItemEnum::TypeAlias(_) => types.push(resolved_info),
             ItemEnum::Trait(_) | ItemEnum::TraitAlias(_) => traits.push(resolved_info),
             ItemEnum::Function(_) => functions.push(resolved_info),
             ItemEnum::Constant { .. } | ItemEnum::Static(_) => constants.push(resolved_info),
-            ItemEnum::Macro(_) | ItemEnum::ProcMacro(_) => macros.push(resolved_info),
+            ItemEnum::Macro(_) | ItemEnum::ProcMacro(_) => macros_vec.push(resolved_info), // Use renamed vec
             _ => {} // Ignore 'Use' and other item kinds not meant for direct documentation here.
         }
     }
-    
+
     // --- PASS 3: Render in a Standardized Order ---
     if !modules.is_empty() {
         output.push_str(&format!("{} Modules\n\n", "#".repeat(heading_level)));
         for resolved_info in modules {
-            process_item(output, resolved_info, data, level + 1);
+            if let Some(_name) = &resolved_info.effective_name {
+                // Changed name to _name as it's not used directly
+                let link = link_resolver(&resolved_info.original_item.id);
+                // For modules, just show the link. Their docs are at the top of their page.
+                output.push_str(&format!("- {}\n", link));
+            }
         }
+        output.push_str("\n");
     }
 
-    if !types.is_empty() {
-        output.push_str(&format!("{} Types\n\n", "#".repeat(heading_level)));
-        for resolved_info in types {
-            process_item(output, resolved_info, data, level + 1);
+    // Helper to render a list of items with their one-line doc summary
+    let mut render_list_with_docs = |title: &str, items_list: &Vec<&ResolvedItemInfo<'_>>| {
+        if !items_list.is_empty() {
+            output.push_str(&format!("{} {}\n\n", "#".repeat(heading_level), title));
+            for resolved_info in items_list {
+                if let Some(_name) = &resolved_info.effective_name {
+                    // Changed name to _name
+                    let link = link_resolver(&resolved_info.original_item.id);
+                    let item_kind_str = get_item_kind_string(&resolved_info.original_item.inner);
+                    output.push_str(&format!("- **{}**: {}", item_kind_str, link));
+                    if let Some(docs) = &resolved_info.original_item.docs {
+                        // Render one-line summary
+                        let first_line = docs.lines().next().unwrap_or("").trim();
+                        if !first_line.is_empty() {
+                            output.push_str(&format!(
+                                " - {}\n",
+                                render_docs_with_links(
+                                    first_line,
+                                    &resolved_info.original_item.links,
+                                    data,
+                                    link_resolver
+                                )
+                            ));
+                        } else {
+                            output.push('\n');
+                        }
+                    } else {
+                        output.push('\n');
+                    }
+                }
+            }
+            output.push_str("\n");
         }
-    }
+    };
 
-    if !traits.is_empty() {
-        output.push_str(&format!("{} Traits\n\n", "#".repeat(heading_level)));
-        for resolved_info in traits {
-            process_item(output, resolved_info, data, level + 1);
-        }
-    }
-
-    if !functions.is_empty() {
-        output.push_str(&format!("{} Functions\n\n", "#".repeat(heading_level)));
-        for resolved_info in functions {
-            process_item(output, resolved_info, data, level + 1);
-        }
-    }
-
-    if !constants.is_empty() {
-        output.push_str(&format!(
-            "{} Constants and Statics\n\n",
-            "#".repeat(heading_level)
-        ));
-        for resolved_info in constants {
-            process_item(output, resolved_info, data, level + 1);
-        }
-    }
-
-    if !macros.is_empty() {
-        output.push_str(&format!("{} Macros\n\n", "#".repeat(heading_level)));
-        for resolved_info in macros {
-            process_item(output, resolved_info, data, level + 1);
-        }
-    }
+    render_list_with_docs(
+        "Structs",
+        &types
+            .iter()
+            .filter(|i| matches!(i.original_item.inner, ItemEnum::Struct(_)))
+            .copied() // Dereference &&ResolvedItemInfo to &ResolvedItemInfo
+            .collect(),
+    );
+    render_list_with_docs(
+        "Enums",
+        &types
+            .iter()
+            .filter(|i| matches!(i.original_item.inner, ItemEnum::Enum(_)))
+            .copied() // Dereference &&ResolvedItemInfo to &ResolvedItemInfo
+            .collect(),
+    );
+    render_list_with_docs(
+        "Unions",
+        &types
+            .iter()
+            .filter(|i| matches!(i.original_item.inner, ItemEnum::Union(_)))
+            .copied() // Dereference &&ResolvedItemInfo to &ResolvedItemInfo
+            .collect(),
+    );
+    render_list_with_docs(
+        "Type Aliases",
+        &types
+            .iter()
+            .filter(|i| matches!(i.original_item.inner, ItemEnum::TypeAlias(_)))
+            .copied() // Dereference &&ResolvedItemInfo to &ResolvedItemInfo
+            .collect(),
+    );
+    render_list_with_docs("Traits", &traits);
+    render_list_with_docs("Functions", &functions);
+    render_list_with_docs("Constants and Statics", &constants);
+    render_list_with_docs("Macros", &macros_vec); // Use renamed vec
 }
 
-pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data: &Crate, level: usize) {
+pub fn render_item_page<F>(
+    output: &mut String,
+    resolved_info: &ResolvedItemInfo,
+    data: &Crate,
+    level: usize,
+    link_resolver: F,
+) where
+    F: Fn(&Id) -> String + Copy,
+{
     let item = resolved_info.original_item;
     let heading_level = std::cmp::min(level, 6);
     let heading_prefix = "#".repeat(heading_level);
 
     let display_name_opt = resolved_info.effective_name.as_ref().or(item.name.as_ref());
     let item_kind_str = get_item_kind_string(&item.inner);
+
+    // For single file mode, add an anchor
+    // The link_resolver for single file mode will generate "#anchor_name"
+    // The link_resolver for multi file mode will generate "path/to/file.md"
+    // So, the anchor is only strictly needed for single file.
+    // We can determine this by checking if the link_resolver output starts with #
+    // However, the plan suggests adding it always and relying on the link_resolver.
+    // Let's follow the plan's specific instruction for adding the anchor.
+    if let Some(summary) = data.paths.get(&item.id) {
+        output.push_str(&format!(
+            "<a name=\"{}\"></a>\n",
+            crate::path_utils::get_item_anchor(item, summary)
+        ));
+    }
 
     // Standardized Heading Logic
     if let Some(display_name) = display_name_opt {
@@ -177,7 +262,10 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
             ));
         } else {
             // Treat all items equally for headings
-            output.push_str(&format!("{} {} `{}`\n\n", heading_prefix, item_kind_str, display_name));
+            output.push_str(&format!(
+                "{} {} `{}`\n\n",
+                heading_prefix, item_kind_str, display_name
+            ));
         }
     } else {
         // Handle nameless items like impls
@@ -189,7 +277,7 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
                     output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
                     output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
                     if let Some(trait_) = &impl_details.trait_ {
-                         output.push_str(&format!("- `{}`\n", trait_.path));
+                        output.push_str(&format!("- `{}`\n", trait_.path));
                     }
                     output.push_str("\n</details>\n\n");
                     return; // Stop processing this item further
@@ -239,42 +327,93 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
     }
 
     if let Some(docs) = &item.docs {
-        output.push_str(&render_docs_with_links(docs, &item.links, data));
+        output.push_str(&render_docs_with_links(
+            docs,
+            &item.links,
+            data,
+            link_resolver,
+        ));
         output.push_str("\n\n");
     }
 
     output.push_str("```rust\n");
-    crate::render_signatures::format_item_signature(output, item, data); 
+    crate::render_signatures::format_item_signature(output, item, data);
     output.push_str("\n```\n\n");
 
     match &item.inner {
-        ItemEnum::Module(module) => crate::render_details::process_module_details(output, module, data, level + 1),
-        ItemEnum::Struct(struct_) => crate::render_details::process_struct_details(output, struct_, data, level + 1),
-        ItemEnum::Enum(enum_) => crate::render_details::process_enum_details(output, enum_, data, level + 1),
-        ItemEnum::Union(union_) => crate::render_details::process_union_details(output, union_, data, level + 1),
-        ItemEnum::Trait(trait_) => crate::render_details::process_trait_details(output, trait_, data, level + 1),
-        ItemEnum::Impl(impl_) => crate::render_details::process_impl_details(output, impl_, data, level + 1),
+        ItemEnum::Module(module) => crate::render_details::process_module_details(
+            output,
+            module,
+            data,
+            level + 1,
+            link_resolver,
+        ),
+        ItemEnum::Struct(struct_) => crate::render_details::process_struct_details(
+            output,
+            struct_,
+            data,
+            level + 1,
+            link_resolver,
+        ),
+        ItemEnum::Enum(enum_) => crate::render_details::process_enum_details(
+            output,
+            enum_,
+            data,
+            level + 1,
+            link_resolver,
+        ),
+        ItemEnum::Union(union_) => crate::render_details::process_union_details(
+            output,
+            union_,
+            data,
+            level + 1,
+            link_resolver,
+        ),
+        ItemEnum::Trait(trait_) => crate::render_details::process_trait_details(
+            output,
+            trait_,
+            data,
+            level + 1,
+            link_resolver,
+        ),
+        ItemEnum::Impl(impl_) => crate::render_details::process_impl_details(
+            output,
+            impl_,
+            data,
+            level + 1,
+            link_resolver,
+        ),
         _ => {}
     }
 }
 
 // As per fix_plan.md Step 3 for Intra-Doc Link Resolution
-pub fn render_docs_with_links(docs: &str, links: &HashMap<String, Id>, data: &Crate) -> String {
+pub fn render_docs_with_links<F>(
+    docs: &str,
+    links: &HashMap<String, Id>,
+    _data: &Crate,
+    link_resolver: F,
+) -> String
+where
+    F: Fn(&Id) -> String,
+{
     let re = Regex::new(r"\[`([^`]+)`\]\[?([^\]]*)\]?").unwrap(); // Matches [`Thing`] and [`Thing`][label]
 
     let result = re.replace_all(docs, |caps: &regex::Captures| {
         let link_text = &caps[1];
+        // The key for the `links` HashMap is the text that was resolved by rustdoc.
+        // This is usually the text inside the brackets, but can be more complex.
+        // The regex `\[`([^`]+)`\]` is a good first approximation for simple links.
+
+        // For links like `[`MyType`]` or `[`my_function()`]`, the link text inside the backticks
+        // is usually what's in the `links` map.
         if let Some(target_id) = links.get(link_text) {
-            if let Some(_summary) = data.paths.get(target_id) {
-                // Placeholder from fix_plan.md: bold it to show it was resolved.
-                format!("**`{}`**", link_text)
-            } else {
-                // Link target not found in paths, render as code
-                format!("`{}`", link_text)
-            }
+            link_resolver(target_id)
         } else {
-            // Not a rustdoc link, render as code
-            format!("`{}`", link_text)
+            // If not found, it might be a more complex link rustdoc didn't resolve for us,
+            // or just regular text that happens to use this markdown pattern.
+            // Render as-is to be safe.
+            caps.get(0).unwrap().as_str().to_string()
         }
     });
 
