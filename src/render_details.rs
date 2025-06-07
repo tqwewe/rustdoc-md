@@ -115,64 +115,111 @@ pub fn process_struct_details<F>(
     }
 
     if !struct_.impls.is_empty() {
-        let mut non_blanket_impls_info = Vec::new();
-        let mut blanket_impl_traits = Vec::new();
+        let mut implemented_trait_paths = Vec::new();
+        let mut all_inherent_methods = Vec::new();
+        let mut all_inherent_assoc_consts = Vec::new();
+        let mut all_inherent_assoc_types = Vec::new();
 
         for &impl_id in &struct_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
                 if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
-                    if impl_details.blanket_impl.is_some() {
-                        if let Some(trait_) = &impl_details.trait_ {
-                            blanket_impl_traits.push(trait_.path.clone());
-                        }
+                    if let Some(trait_ref) = &impl_details.trait_ {
+                        // This is a trait implementation (impl Trait for Type)
+                        implemented_trait_paths.push(trait_ref.path.clone());
                     } else {
-                        non_blanket_impls_info.push(ResolvedItemInfo {
-                            original_item: impl_item_ref,
-                            effective_name: None, // Impls are often nameless in this context
-                            reexport_source_canonical_path: None,
-                        });
+                        // This is an inherent implementation (impl Type)
+                        // Collect its associated items
+                        for &assoc_item_id in &impl_details.items {
+                            if let Some(assoc_item_ref) = data.index.get(&assoc_item_id) {
+                                let resolved_assoc_info = ResolvedItemInfo {
+                                    original_item: assoc_item_ref,
+                                    effective_name: assoc_item_ref.name.clone(),
+                                    reexport_source_canonical_path: None,
+                                };
+                                match &assoc_item_ref.inner {
+                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
+                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
+                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    _ => {} // Other associated items not handled here
+                                }
+                            }
+                        }
                     }
-                } else {
-                    // This case implies the item is not an Impl, or data is malformed.
-                    // Treat as a non-blanket impl for rendering to be safe.
-                    non_blanket_impls_info.push(ResolvedItemInfo {
-                        original_item: impl_item_ref,
-                        effective_name: None,
-                        reexport_source_canonical_path: None,
-                    });
                 }
             }
         }
 
-        blanket_impl_traits.sort();
-        blanket_impl_traits.dedup();
-
-        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+        implemented_trait_paths.sort();
+        implemented_trait_paths.dedup();
+        all_inherent_methods.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_consts.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_types.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        
+        // Print main "Implementations" heading if there's anything to show
+        if !all_inherent_methods.is_empty()
+            || !all_inherent_assoc_consts.is_empty()
+            || !all_inherent_assoc_types.is_empty()
+            || !implemented_trait_paths.is_empty()
+        {
             output.push_str(&format!(
                 "{} Implementations\n\n",
                 "#".repeat(heading_level)
             ));
         }
 
-        if !non_blanket_impls_info.is_empty() {
-            for resolved_impl_info in non_blanket_impls_info {
+        // Render collected inherent methods
+        if !all_inherent_methods.is_empty() {
+            output.push_str(&format!("{} Methods\n\n", "#".repeat(heading_level + 1)));
+            for resolved_method_info in all_inherent_methods {
                 crate::render_core::render_item_page(
                     output,
-                    &resolved_impl_info,
+                    &resolved_method_info,
                     data,
-                    heading_level + 1,
+                    heading_level + 2, // Methods under "Methods" H3, so individual methods are H4
                     link_resolver,
                 );
             }
         }
 
-        if !blanket_impl_traits.is_empty() {
-            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
-            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
-            for trait_path in blanket_impl_traits {
+        // Render collected inherent associated constants
+        if !all_inherent_assoc_consts.is_empty() {
+            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            for resolved_const_info in all_inherent_assoc_consts {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_const_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+        
+        // Render collected inherent associated types
+        if !all_inherent_assoc_types.is_empty() {
+            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            for resolved_type_info in all_inherent_assoc_types {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_type_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+
+        // Render the consolidated list of implemented traits
+        if !implemented_trait_paths.is_empty() {
+            output.push_str(&format!(
+                "{} Implemented Traits\n\n", 
+                "#".repeat(heading_level + 1)
+            ));
+            output.push_str("This type has the following traits implemented:\n\n");
+            for trait_path in implemented_trait_paths {
                 output.push_str(&format!("- `{}`\n", trait_path));
             }
-            output.push_str("\n</details>\n\n");
+            output.push_str("\n");
         }
     }
 }
@@ -353,62 +400,103 @@ pub fn process_enum_details<F>(
     }
 
     if !enum_.impls.is_empty() {
-        let mut non_blanket_impls_info = Vec::new();
-        let mut blanket_impl_traits = Vec::new();
+        let mut implemented_trait_paths = Vec::new();
+        let mut all_inherent_methods = Vec::new();
+        let mut all_inherent_assoc_consts = Vec::new();
+        let mut all_inherent_assoc_types = Vec::new();
 
         for &impl_id in &enum_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
                 if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
-                    if impl_details.blanket_impl.is_some() {
-                        if let Some(trait_) = &impl_details.trait_ {
-                            blanket_impl_traits.push(trait_.path.clone());
-                        }
+                    if let Some(trait_ref) = &impl_details.trait_ {
+                        implemented_trait_paths.push(trait_ref.path.clone());
                     } else {
-                        non_blanket_impls_info.push(ResolvedItemInfo {
-                            original_item: impl_item_ref,
-                            effective_name: None,
-                            reexport_source_canonical_path: None,
-                        });
+                        for &assoc_item_id in &impl_details.items {
+                            if let Some(assoc_item_ref) = data.index.get(&assoc_item_id) {
+                                let resolved_assoc_info = ResolvedItemInfo {
+                                    original_item: assoc_item_ref,
+                                    effective_name: assoc_item_ref.name.clone(),
+                                    reexport_source_canonical_path: None,
+                                };
+                                match &assoc_item_ref.inner {
+                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
+                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
+                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    _ => {}
+                                }
+                            }
+                        }
                     }
-                } else {
-                    non_blanket_impls_info.push(ResolvedItemInfo {
-                        original_item: impl_item_ref,
-                        effective_name: None,
-                        reexport_source_canonical_path: None,
-                    });
                 }
             }
         }
 
-        blanket_impl_traits.sort();
-        blanket_impl_traits.dedup();
+        implemented_trait_paths.sort();
+        implemented_trait_paths.dedup();
+        all_inherent_methods.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_consts.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_types.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
 
-        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+        if !all_inherent_methods.is_empty()
+            || !all_inherent_assoc_consts.is_empty()
+            || !all_inherent_assoc_types.is_empty()
+            || !implemented_trait_paths.is_empty()
+        {
             output.push_str(&format!(
                 "{} Implementations\n\n",
                 "#".repeat(heading_level)
             ));
         }
 
-        if !non_blanket_impls_info.is_empty() {
-            for resolved_impl_info in non_blanket_impls_info {
+        if !all_inherent_methods.is_empty() {
+            output.push_str(&format!("{} Methods\n\n", "#".repeat(heading_level + 1)));
+            for resolved_method_info in all_inherent_methods {
                 crate::render_core::render_item_page(
                     output,
-                    &resolved_impl_info,
+                    &resolved_method_info,
                     data,
-                    heading_level + 1,
+                    heading_level + 2,
                     link_resolver,
                 );
             }
         }
 
-        if !blanket_impl_traits.is_empty() {
-            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
-            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
-            for trait_path in blanket_impl_traits {
+        if !all_inherent_assoc_consts.is_empty() {
+            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            for resolved_const_info in all_inherent_assoc_consts {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_const_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+        
+        if !all_inherent_assoc_types.is_empty() {
+            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            for resolved_type_info in all_inherent_assoc_types {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_type_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+
+        if !implemented_trait_paths.is_empty() {
+            output.push_str(&format!(
+                "{} Implemented Traits\n\n",
+                "#".repeat(heading_level + 1)
+            ));
+            output.push_str("This type has the following traits implemented:\n\n");
+            for trait_path in implemented_trait_paths {
                 output.push_str(&format!("- `{}`\n", trait_path));
             }
-            output.push_str("\n</details>\n\n");
+            output.push_str("\n");
         }
     }
 }
@@ -454,62 +542,103 @@ pub fn process_union_details<F>(
     output.push('\n');
 
     if !union_.impls.is_empty() {
-        let mut non_blanket_impls_info = Vec::new();
-        let mut blanket_impl_traits = Vec::new();
+        let mut implemented_trait_paths = Vec::new();
+        let mut all_inherent_methods = Vec::new();
+        let mut all_inherent_assoc_consts = Vec::new();
+        let mut all_inherent_assoc_types = Vec::new();
 
         for &impl_id in &union_.impls {
             if let Some(impl_item_ref) = data.index.get(&impl_id) {
                 if let ItemEnum::Impl(impl_details) = &impl_item_ref.inner {
-                    if impl_details.blanket_impl.is_some() {
-                        if let Some(trait_) = &impl_details.trait_ {
-                            blanket_impl_traits.push(trait_.path.clone());
-                        }
+                    if let Some(trait_ref) = &impl_details.trait_ {
+                        implemented_trait_paths.push(trait_ref.path.clone());
                     } else {
-                        non_blanket_impls_info.push(ResolvedItemInfo {
-                            original_item: impl_item_ref,
-                            effective_name: None,
-                            reexport_source_canonical_path: None,
-                        });
+                        for &assoc_item_id in &impl_details.items {
+                            if let Some(assoc_item_ref) = data.index.get(&assoc_item_id) {
+                                let resolved_assoc_info = ResolvedItemInfo {
+                                    original_item: assoc_item_ref,
+                                    effective_name: assoc_item_ref.name.clone(),
+                                    reexport_source_canonical_path: None,
+                                };
+                                match &assoc_item_ref.inner {
+                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
+                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
+                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    _ => {}
+                                }
+                            }
+                        }
                     }
-                } else {
-                    non_blanket_impls_info.push(ResolvedItemInfo {
-                        original_item: impl_item_ref,
-                        effective_name: None,
-                        reexport_source_canonical_path: None,
-                    });
                 }
             }
         }
 
-        blanket_impl_traits.sort();
-        blanket_impl_traits.dedup();
+        implemented_trait_paths.sort();
+        implemented_trait_paths.dedup();
+        all_inherent_methods.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_consts.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
+        all_inherent_assoc_types.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
 
-        if !non_blanket_impls_info.is_empty() || !blanket_impl_traits.is_empty() {
+        if !all_inherent_methods.is_empty()
+            || !all_inherent_assoc_consts.is_empty()
+            || !all_inherent_assoc_types.is_empty()
+            || !implemented_trait_paths.is_empty()
+        {
             output.push_str(&format!(
                 "{} Implementations\n\n",
                 "#".repeat(heading_level)
             ));
         }
 
-        if !non_blanket_impls_info.is_empty() {
-            for resolved_impl_info in non_blanket_impls_info {
+        if !all_inherent_methods.is_empty() {
+            output.push_str(&format!("{} Methods\n\n", "#".repeat(heading_level + 1)));
+            for resolved_method_info in all_inherent_methods {
                 crate::render_core::render_item_page(
                     output,
-                    &resolved_impl_info,
+                    &resolved_method_info,
                     data,
-                    heading_level + 1,
+                    heading_level + 2,
                     link_resolver,
                 );
             }
         }
 
-        if !blanket_impl_traits.is_empty() {
-            output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
-            output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
-            for trait_path in blanket_impl_traits {
+        if !all_inherent_assoc_consts.is_empty() {
+            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            for resolved_const_info in all_inherent_assoc_consts {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_const_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+        
+        if !all_inherent_assoc_types.is_empty() {
+            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            for resolved_type_info in all_inherent_assoc_types {
+                crate::render_core::render_item_page(
+                    output,
+                    &resolved_type_info,
+                    data,
+                    heading_level + 2,
+                    link_resolver,
+                );
+            }
+        }
+
+        if !implemented_trait_paths.is_empty() {
+            output.push_str(&format!(
+                "{} Implemented Traits\n\n",
+                "#".repeat(heading_level + 1)
+            ));
+            output.push_str("This type has the following traits implemented:\n\n");
+            for trait_path in implemented_trait_paths {
                 output.push_str(&format!("- `{}`\n", trait_path));
             }
-            output.push_str("\n</details>\n\n");
+            output.push_str("\n");
         }
     }
 }
