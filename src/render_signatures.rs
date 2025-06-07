@@ -675,7 +675,11 @@ pub fn format_generics(output: &mut String, generics: &Generics, data: &ParsedCr
     output.push('>');
 }
 
-pub fn format_where_clause(output: &mut String, predicates: &[WherePredicate], data: &ParsedCrateDoc) {
+pub fn format_where_clause(
+    output: &mut String,
+    predicates: &[WherePredicate],
+    data: &ParsedCrateDoc,
+) {
     if predicates.is_empty() {
         return;
     }

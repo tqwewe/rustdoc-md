@@ -137,9 +137,15 @@ pub fn process_struct_details<F>(
                                     reexport_source_canonical_path: None,
                                 };
                                 match &assoc_item_ref.inner {
-                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
-                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
-                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    ItemEnum::Function(_) => {
+                                        all_inherent_methods.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocConst { .. } => {
+                                        all_inherent_assoc_consts.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocType { .. } => {
+                                        all_inherent_assoc_types.push(resolved_assoc_info)
+                                    }
                                     _ => {} // Other associated items not handled here
                                 }
                             }
@@ -154,7 +160,7 @@ pub fn process_struct_details<F>(
         all_inherent_methods.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
         all_inherent_assoc_consts.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
         all_inherent_assoc_types.sort_by(|a, b| a.effective_name.cmp(&b.effective_name));
-        
+
         // Print main "Implementations" heading if there's anything to show
         if !all_inherent_methods.is_empty()
             || !all_inherent_assoc_consts.is_empty()
@@ -183,7 +189,10 @@ pub fn process_struct_details<F>(
 
         // Render collected inherent associated constants
         if !all_inherent_assoc_consts.is_empty() {
-            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Constants\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_const_info in all_inherent_assoc_consts {
                 crate::render_core::render_item_page(
                     output,
@@ -194,10 +203,13 @@ pub fn process_struct_details<F>(
                 );
             }
         }
-        
+
         // Render collected inherent associated types
         if !all_inherent_assoc_types.is_empty() {
-            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Types\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_type_info in all_inherent_assoc_types {
                 crate::render_core::render_item_page(
                     output,
@@ -212,7 +224,7 @@ pub fn process_struct_details<F>(
         // Render the consolidated list of implemented traits
         if !implemented_trait_paths.is_empty() {
             output.push_str(&format!(
-                "{} Implemented Traits\n\n", 
+                "{} Implemented Traits\n\n",
                 "#".repeat(heading_level + 1)
             ));
             output.push_str("This type has the following traits implemented:\n\n");
@@ -419,9 +431,15 @@ pub fn process_enum_details<F>(
                                     reexport_source_canonical_path: None,
                                 };
                                 match &assoc_item_ref.inner {
-                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
-                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
-                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    ItemEnum::Function(_) => {
+                                        all_inherent_methods.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocConst { .. } => {
+                                        all_inherent_assoc_consts.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocType { .. } => {
+                                        all_inherent_assoc_types.push(resolved_assoc_info)
+                                    }
                                     _ => {}
                                 }
                             }
@@ -462,7 +480,10 @@ pub fn process_enum_details<F>(
         }
 
         if !all_inherent_assoc_consts.is_empty() {
-            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Constants\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_const_info in all_inherent_assoc_consts {
                 crate::render_core::render_item_page(
                     output,
@@ -473,9 +494,12 @@ pub fn process_enum_details<F>(
                 );
             }
         }
-        
+
         if !all_inherent_assoc_types.is_empty() {
-            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Types\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_type_info in all_inherent_assoc_types {
                 crate::render_core::render_item_page(
                     output,
@@ -561,9 +585,15 @@ pub fn process_union_details<F>(
                                     reexport_source_canonical_path: None,
                                 };
                                 match &assoc_item_ref.inner {
-                                    ItemEnum::Function(_) => all_inherent_methods.push(resolved_assoc_info),
-                                    ItemEnum::AssocConst { .. } => all_inherent_assoc_consts.push(resolved_assoc_info),
-                                    ItemEnum::AssocType { .. } => all_inherent_assoc_types.push(resolved_assoc_info),
+                                    ItemEnum::Function(_) => {
+                                        all_inherent_methods.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocConst { .. } => {
+                                        all_inherent_assoc_consts.push(resolved_assoc_info)
+                                    }
+                                    ItemEnum::AssocType { .. } => {
+                                        all_inherent_assoc_types.push(resolved_assoc_info)
+                                    }
                                     _ => {}
                                 }
                             }
@@ -604,7 +634,10 @@ pub fn process_union_details<F>(
         }
 
         if !all_inherent_assoc_consts.is_empty() {
-            output.push_str(&format!("{} Associated Constants\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Constants\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_const_info in all_inherent_assoc_consts {
                 crate::render_core::render_item_page(
                     output,
@@ -615,9 +648,12 @@ pub fn process_union_details<F>(
                 );
             }
         }
-        
+
         if !all_inherent_assoc_types.is_empty() {
-            output.push_str(&format!("{} Associated Types\n\n", "#".repeat(heading_level + 1)));
+            output.push_str(&format!(
+                "{} Associated Types\n\n",
+                "#".repeat(heading_level + 1)
+            ));
             for resolved_type_info in all_inherent_assoc_types {
                 crate::render_core::render_item_page(
                     output,
@@ -704,7 +740,6 @@ pub fn process_trait_details<F>(
             &required_items,
             data,
             level + 1,
-            "Required",
             link_resolver,
         );
     }
@@ -716,7 +751,6 @@ pub fn process_trait_details<F>(
             &provided_items,
             data,
             level + 1,
-            "Provided",
             link_resolver,
         );
     }
@@ -873,7 +907,6 @@ fn render_associated_item_group<F>(
     item_ids: &[Id],
     data: &ParsedCrateDoc,
     level: usize,
-    _group_prefix: &str,
     link_resolver: F,
 ) where
     F: Fn(&Id) -> String + Copy,

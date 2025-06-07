@@ -13,7 +13,6 @@ pub fn generate(krate: &ParsedCrateDoc, output_dir: &Path) -> eyre::Result<()> {
 
 struct Generator<'a> {
     krate: &'a ParsedCrateDoc,
-    // output_dir: &'a Path, // No longer needed as a field
     fs_paths: HashMap<Id, PathBuf>, // Stores the absolute path for each item's file
 }
 
@@ -27,7 +26,7 @@ impl<'a> Generator<'a> {
             let path = get_item_fs_path(krate, id, output_dir_param);
             fs_paths.insert(*id, path);
         }
-        Ok(Self { krate, fs_paths }) // output_dir removed from struct
+        Ok(Self { krate, fs_paths })
     }
 
     fn run(&self) -> eyre::Result<()> {

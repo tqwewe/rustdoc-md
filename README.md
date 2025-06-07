@@ -45,25 +45,30 @@ rustdoc-md --path target/doc/your_crate.json --output api_docs.md
 
 ### API Usage
 
-You can also use rustdoc-md as a library in your Rust projects:
+You can also use `rustdoc-md` as a library in your Rust projects:
 
 ```rust
-use rustdoc_md::{rustdoc_json_to_markdown, rustdoc_json_types::Crate};
-use std::fs;
+use rustdoc_md::rustdoc_json_types::ParsedCrateDoc;
+use std::{fs, path::Path};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load the JSON file
-    let json_path = "target/doc/your_crate.json";
-    let data: Crate = serde_json::from_reader(
-        fs::File::open(json_path)?
-    )?;
+fn main() -> eyre::Result<()> {
+    let json_path = Path::new("target/doc/your_crate.json");
+
+    // Load the rustdoc JSON data
+    let krate = ParsedCrateDoc::from_file(json_path)?;
     
-    // Convert to Markdown
-    let markdown = rustdoc_json_to_markdown(data);
-    
-    // Save the Markdown file
-    fs::write("api_docs.md", markdown)?;
-    println!("Documentation converted successfully!");
+    // Generate a single Markdown string
+    let markdown_string = krate.to_string();
+    fs::write("api_docs_string.md", markdown_string)?;
+    println!("Single string Markdown generated to api_docs_string.md");
+
+    // Or, generate and save to a single file directly
+    krate.to_single_file(Path::new("api_docs_single_file.md"))?;
+    println!("Single file Markdown generated to api_docs_single_file.md");
+
+    // Or, generate a multi-file documentation structure
+    krate.to_multi_file(Path::new("docs_output_directory"))?;
+    println!("Multi-file Markdown generated in docs_output_directory/");
     
     Ok(())
 }
@@ -71,7 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Compatibility
 
-This crate is compatible with rustdoc JSON format version 42. The format may change in future Rust releases as it's still considered unstable.
+This crate is compatible with rustdoc JSON format version 43 (as per `FORMAT_VERSION` in `rustdoc_json_types.rs`). The format may change in future Rust releases as it's still considered unstable.
 
 For tracking the latest rustdoc JSON schema changes, see the [rustdoc-json-types repository](https://github.com/rust-lang/rust/blob/master/src/rustdoc-json-types/lib.rs).
 

@@ -8,7 +8,6 @@ pub mod rustdoc_json_types;
 use rustdoc_json_types::*;
 use std::{fs, io, path::Path};
 
-
 impl ParsedCrateDoc {
     /// Loads a `ParsedCrateDoc` from a rustdoc JSON file.
     pub fn from_file(path: &Path) -> eyre::Result<Self> {
