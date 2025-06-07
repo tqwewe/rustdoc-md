@@ -1,4 +1,6 @@
 use crate::rustdoc_json_types::*;
+use regex::Regex;
+use std::collections::HashMap;
 
 // Helper struct to carry context about how an item is being presented
 #[derive(Clone, Debug)]
@@ -181,6 +183,19 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
         // Handle nameless items like impls
         match &item.inner {
             ItemEnum::Impl(impl_details) => {
+                // *** START CHANGE (Blanket Impl Handling from fix_plan.md) ***
+                // Check for blanket impls and render a collapsed summary instead of the full block
+                if impl_details.blanket_impl.is_some() {
+                    output.push_str("<details><summary>Blanket Implementations</summary>\n\n");
+                    output.push_str("This type is implemented for the following traits through blanket implementations:\n\n");
+                    if let Some(trait_) = &impl_details.trait_ {
+                         output.push_str(&format!("- `{}`\n", trait_.path));
+                    }
+                    output.push_str("\n</details>\n\n");
+                    return; // Stop processing this item further
+                }
+                // *** END CHANGE ***
+
                 if let Some(trait_) = &impl_details.trait_ {
                     output.push_str(&format!(
                         "{} Implementation of `{}` for `{}`\n\n",
@@ -224,7 +239,8 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
     }
 
     if let Some(docs) = &item.docs {
-        output.push_str(&format!("{}\n\n", docs));
+        output.push_str(&render_docs_with_links(docs, &item.links, data));
+        output.push_str("\n\n");
     }
 
     output.push_str("```rust\n");
@@ -240,4 +256,27 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
         ItemEnum::Impl(impl_) => crate::render_details::process_impl_details(output, impl_, data, level + 1),
         _ => {}
     }
+}
+
+// As per fix_plan.md Step 3 for Intra-Doc Link Resolution
+pub fn render_docs_with_links(docs: &str, links: &HashMap<String, Id>, data: &Crate) -> String {
+    let re = Regex::new(r"\[`([^`]+)`\]\[?([^\]]*)\]?").unwrap(); // Matches [`Thing`] and [`Thing`][label]
+
+    let result = re.replace_all(docs, |caps: &regex::Captures| {
+        let link_text = &caps[1];
+        if let Some(target_id) = links.get(link_text) {
+            if let Some(_summary) = data.paths.get(target_id) {
+                // Placeholder from fix_plan.md: bold it to show it was resolved.
+                format!("**`{}`**", link_text)
+            } else {
+                // Link target not found in paths, render as code
+                format!("`{}`", link_text)
+            }
+        } else {
+            // Not a rustdoc link, render as code
+            format!("`{}`", link_text)
+        }
+    });
+
+    result.into_owned()
 }

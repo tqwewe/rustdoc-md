@@ -1,5 +1,5 @@
 use crate::rustdoc_json_types::*;
-use crate::render_core::{ResolvedItemInfo, process_item};
+use crate::render_core::{ResolvedItemInfo, process_item, render_docs_with_links};
 use crate::render_signatures::{format_item_signature, format_type, format_generics};
 
 
@@ -25,16 +25,13 @@ pub fn process_struct_details(output: &mut String, struct_: &Struct, data: &Crat
                 if let Some(field_id) = field_opt {
                     if let Some(field_item) = data.index.get(field_id) {
                         if let ItemEnum::StructField(field_type) = &field_item.inner {
-                            let docs = field_item
-                                .docs
-                                .as_deref()
-                                .unwrap_or("")
-                                .replace("\n", "<br>");
+                            let docs_str = field_item.docs.as_deref().unwrap_or("");
+                            let rendered_docs = if docs_str.is_empty() { "".to_string() } else { render_docs_with_links(docs_str, &field_item.links, data).replace("\n", "<br>") };
                             output.push_str(&format!(
                                 "| {} | `{}` | {} |\n",
                                 i,
                                 format_type(field_type, data),
-                                docs
+                                rendered_docs
                             ));
                         }
                     }
@@ -56,16 +53,13 @@ pub fn process_struct_details(output: &mut String, struct_: &Struct, data: &Crat
                 if let Some(field_item) = data.index.get(&field_id) {
                     if let Some(field_name) = &field_item.name {
                         if let ItemEnum::StructField(field_type) = &field_item.inner {
-                            let docs = field_item
-                                .docs
-                                .as_deref()
-                                .unwrap_or("")
-                                .replace("\n", "<br>");
+                            let docs_str = field_item.docs.as_deref().unwrap_or("");
+                            let rendered_docs = if docs_str.is_empty() { "".to_string() } else { render_docs_with_links(docs_str, &field_item.links, data).replace("\n", "<br>") };
                             output.push_str(&format!(
                                 "| `{}` | `{}` | {} |\n",
                                 field_name,
                                 format_type(field_type, data),
-                                docs
+                                rendered_docs
                             ));
                         }
                     }
@@ -112,7 +106,8 @@ pub fn process_enum_details(output: &mut String, enum_: &Enum, data: &Crate, lev
                 ));
 
                 if let Some(docs) = &variant_item.docs {
-                    output.push_str(&format!("{}\n\n", docs));
+                    output.push_str(&render_docs_with_links(docs, &variant_item.links, data));
+                    output.push_str("\n\n");
                 }
 
                 if let ItemEnum::Variant(variant_details) = &variant_item.inner {
@@ -164,8 +159,9 @@ pub fn process_enum_details(output: &mut String, enum_: &Enum, data: &Crate, lev
                                     if let Some(field_id) = field_opt {
                                         if let Some(field_item) = data.index.get(field_id) {
                                             if let ItemEnum::StructField(field_type) = &field_item.inner {
-                                                let docs = field_item.docs.as_deref().unwrap_or("").replace("\n", "<br>");
-                                                output.push_str(&format!("| {} | `{}` | {} |\n", i, format_type(field_type, data), docs));
+                                                let docs_str = field_item.docs.as_deref().unwrap_or("");
+                                                let rendered_docs = if docs_str.is_empty() { "".to_string() } else { render_docs_with_links(docs_str, &field_item.links, data).replace("\n", "<br>") };
+                                                output.push_str(&format!("| {} | `{}` | {} |\n", i, format_type(field_type, data), rendered_docs));
                                             }
                                         }
                                     } else {
@@ -184,8 +180,9 @@ pub fn process_enum_details(output: &mut String, enum_: &Enum, data: &Crate, lev
                                     if let Some(field_item) = data.index.get(&field_id) {
                                         if let Some(field_name) = &field_item.name {
                                             if let ItemEnum::StructField(field_type) = &field_item.inner {
-                                                let docs = field_item.docs.as_deref().unwrap_or("").replace("\n", "<br>");
-                                                output.push_str(&format!("| `{}` | `{}` | {} |\n", field_name, format_type(field_type, data), docs));
+                                                let docs_str = field_item.docs.as_deref().unwrap_or("");
+                                                let rendered_docs = if docs_str.is_empty() { "".to_string() } else { render_docs_with_links(docs_str, &field_item.links, data).replace("\n", "<br>") };
+                                                output.push_str(&format!("| `{}` | `{}` | {} |\n", field_name, format_type(field_type, data), rendered_docs));
                                             }
                                         }
                                     }
@@ -235,8 +232,9 @@ pub fn process_union_details(output: &mut String, union_: &Union, data: &Crate, 
         if let Some(field_item) = data.index.get(&field_id) {
             if let Some(field_name) = &field_item.name {
                 if let ItemEnum::StructField(field_type) = &field_item.inner {
-                    let docs = field_item.docs.as_deref().unwrap_or("").replace("\n", "<br>");
-                    output.push_str(&format!("| `{}` | `{}` | {} |\n", field_name, format_type(field_type, data), docs));
+                    let docs_str = field_item.docs.as_deref().unwrap_or("");
+                    let rendered_docs = if docs_str.is_empty() { "".to_string() } else { render_docs_with_links(docs_str, &field_item.links, data).replace("\n", "<br>") };
+                    output.push_str(&format!("| `{}` | `{}` | {} |\n", field_name, format_type(field_type, data), rendered_docs));
                 }
             }
         }
