@@ -39,30 +39,24 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
     let heading_level = std::cmp::min(level, 6);
 
     let mut all_resolved_items: Vec<ResolvedItemInfo<'_>> = Vec::new();
-    let mut use_item_ids_for_reexport_section: Vec<Id> = Vec::new();
 
+    // --- PASS 1: Collect and Resolve All Items (Direct and Re-exported) ---
     for &id in item_ids {
         if let Some(item) = data.index.get(&id) {
-            match &item.inner {
-                ItemEnum::Use(use_item) => {
-                    use_item_ids_for_reexport_section.push(id); // Always add Use item for "Re-exports" section
-
+            if let ItemEnum::Use(use_item) = &item.inner {
+                // If the 'use' statement is public, resolve its contents.
+                if let Visibility::Public = item.visibility {
                     if use_item.is_glob {
-                        // Handle glob re-exports
                         if let Some(target_module_id) = use_item.id {
                             if let Some(target_module_item) = data.index.get(&target_module_id) {
                                 if let ItemEnum::Module(target_module_details) = &target_module_item.inner {
                                     for &glob_item_id in &target_module_details.items {
                                         if let Some(glob_item) = data.index.get(&glob_item_id) {
-                                            // Only re-export public items from the target module
                                             if glob_item.visibility == Visibility::Public {
-                                                let canonical_path = data.paths.get(&glob_item.id)
-                                                    .map(|summary| summary.path.join("::"))
-                                                    .unwrap_or_else(|| glob_item.name.clone().unwrap_or_default());
-
+                                                let canonical_path = data.paths.get(&glob_item.id).map(|s| s.path.join("::")).unwrap_or_default();
                                                 all_resolved_items.push(ResolvedItemInfo {
                                                     original_item: glob_item,
-                                                    effective_name: glob_item.name.clone(), // Use original name
+                                                    effective_name: glob_item.name.clone(),
                                                     reexport_source_canonical_path: Some(canonical_path),
                                                 });
                                             }
@@ -72,73 +66,52 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
                             }
                         }
                     } else {
-                        // Process named re-exports for inlining
+                        // Named re-export
                         if let Some(target_id) = use_item.id {
                             if let Some(target_item) = data.index.get(&target_id) {
-                                // For Phase 1 & 2, let's focus on re-exporting most item kinds
-                                // that can be reasonably inlined.
-                                match &target_item.inner {
-                                    ItemEnum::Struct(_) | ItemEnum::Enum(_) | ItemEnum::Union(_) |
-                                    ItemEnum::Trait(_) | ItemEnum::Function(_) | ItemEnum::TypeAlias(_) |
-                                    ItemEnum::Constant{..} | ItemEnum::Static(_) | ItemEnum::Macro(_) | ItemEnum::ProcMacro(_)=> {
-                                        let canonical_path = data.paths.get(&target_item.id)
-                                            .map(|summary| summary.path.join("::"))
-                                            .unwrap_or_else(|| target_item.name.clone().unwrap_or_default());
-
-                                        all_resolved_items.push(ResolvedItemInfo {
-                                            original_item: target_item,
-                                            effective_name: Some(use_item.name.clone()), // Alias name
-                                            reexport_source_canonical_path: Some(canonical_path),
-                                        });
-                                    }
-                                    _ => {
-                                        // Other re-exported types (like Modules via `pub use other_mod;`)
-                                        // will just be listed in the "Re-exports" section for now.
-                                        // Or, if it's a module, it might be handled if it's directly in item_ids.
-                                    }
-                                }
+                                let canonical_path = data.paths.get(&target_item.id).map(|s| s.path.join("::")).unwrap_or_default();
+                                all_resolved_items.push(ResolvedItemInfo {
+                                    original_item: target_item,
+                                    effective_name: Some(use_item.name.clone()),
+                                    reexport_source_canonical_path: Some(canonical_path),
+                                });
                             }
                         }
                     }
                 }
-                _ => {
-                    // Direct items
-                    all_resolved_items.push(ResolvedItemInfo {
-                        original_item: item,
-                        effective_name: item.name.clone(), // Use its own name
-                        reexport_source_canonical_path: None,
-                    });
-                }
+            } else {
+                // Direct item definition
+                all_resolved_items.push(ResolvedItemInfo {
+                    original_item: item,
+                    effective_name: item.name.clone(),
+                    reexport_source_canonical_path: None,
+                });
             }
         }
     }
 
-    // Group resolved items by kind for better organization
+    // --- PASS 2: Group and Render ---
     let mut modules: Vec<&ResolvedItemInfo<'_>> = Vec::new();
-    let mut types: Vec<&ResolvedItemInfo<'_>> = Vec::new(); // Structs, Enums, Unions, TypeAliases
+    let mut types: Vec<&ResolvedItemInfo<'_>> = Vec::new();
     let mut traits: Vec<&ResolvedItemInfo<'_>> = Vec::new();
     let mut functions: Vec<&ResolvedItemInfo<'_>> = Vec::new();
-    let mut constants: Vec<&ResolvedItemInfo<'_>> = Vec::new(); // Constants, Statics
+    let mut constants: Vec<&ResolvedItemInfo<'_>> = Vec::new();
     let mut macros: Vec<&ResolvedItemInfo<'_>> = Vec::new();
-    let mut other_items: Vec<&ResolvedItemInfo<'_>> = Vec::new();
 
-
+    // The existing categorization logic is good.
     for resolved_info in &all_resolved_items {
         match &resolved_info.original_item.inner {
             ItemEnum::Module(_) => modules.push(resolved_info),
-            ItemEnum::Struct(_) | ItemEnum::Enum(_) | ItemEnum::Union(_) | ItemEnum::TypeAlias(_) => {
-                types.push(resolved_info)
-            }
+            ItemEnum::Struct(_) | ItemEnum::Enum(_) | ItemEnum::Union(_) | ItemEnum::TypeAlias(_) => types.push(resolved_info),
             ItemEnum::Trait(_) | ItemEnum::TraitAlias(_) => traits.push(resolved_info),
             ItemEnum::Function(_) => functions.push(resolved_info),
             ItemEnum::Constant { .. } | ItemEnum::Static(_) => constants.push(resolved_info),
             ItemEnum::Macro(_) | ItemEnum::ProcMacro(_) => macros.push(resolved_info),
-            ItemEnum::Use(_) => {} // These are handled by use_item_ids_for_reexport_section or resolved above
-            _ => other_items.push(resolved_info),
+            _ => {} // Ignore 'Use' and other item kinds not meant for direct documentation here.
         }
     }
-
-    // Process each group in order
+    
+    // --- PASS 3: Render in a Standardized Order ---
     if !modules.is_empty() {
         output.push_str(&format!("{} Modules\n\n", "#".repeat(heading_level)));
         for resolved_info in modules {
@@ -183,71 +156,7 @@ pub fn process_items(output: &mut String, item_ids: &[Id], data: &Crate, level: 
             process_item(output, resolved_info, data, level + 1);
         }
     }
-
-    // Render the "Re-exports" section for transparency, listing the use statements themselves
-    if !use_item_ids_for_reexport_section.is_empty() {
-        output.push_str(&format!("{} Re-exports\n\n", "#".repeat(heading_level)));
-        for id in use_item_ids_for_reexport_section {
-            if let Some(use_item_obj) = data.index.get(&id) {
-                 format_use_statement_for_listing(output, use_item_obj, data, level + 1);
-            }
-        }
-    }
-
-    if !other_items.is_empty() {
-        output.push_str(&format!("{} Other Items\n\n", "#".repeat(heading_level)));
-        for resolved_info in other_items {
-            process_item(output, resolved_info, data, level + 1);
-        }
-    }
 }
-
-// New function to format just the 'use' statement for the "Re-exports" section
-pub fn format_use_statement_for_listing(output: &mut String, item: &Item, _data: &Crate, level: usize) {
-    let heading_level = std::cmp::min(level, 6); 
-    let heading = "#".repeat(heading_level);
-
-    if let ItemEnum::Use(use_item) = &item.inner {
-        let source_name_segment = use_item.source.split("::").last().unwrap_or(&use_item.source);
-
-        // Heading for the use statement
-        if use_item.is_glob {
-            output.push_str(&format!("{} `use {}::*`\n\n", heading, use_item.source));
-        } else {
-            let display_name = item.name.as_ref().unwrap_or(&use_item.name);
-            if display_name != source_name_segment && item.name.is_some() { 
-                 output.push_str(&format!("{} `use {} as {}`\n\n", heading, use_item.source, display_name));
-            } else { 
-                 output.push_str(&format!("{} `use {}`\n\n", heading, use_item.source));
-            }
-        }
-
-        if let Some(docs) = &item.docs {
-            output.push_str(&format!("{}\n\n", docs));
-        }
-
-        output.push_str("```rust\n");
-        let mut use_signature = String::new();
-        match &item.visibility {
-            Visibility::Public => use_signature.push_str("pub "),
-            Visibility::Crate => use_signature.push_str("pub(crate) "),
-            Visibility::Restricted { path, .. } => use_signature.push_str(&format!("pub(in {}) ", path)),
-            Visibility::Default => {}
-        }
-        use_signature.push_str(&format!("use {}", use_item.source));
-        if use_item.is_glob {
-            use_signature.push_str("::*");
-        } else if let Some(name_attr) = &item.name { 
-            if name_attr != source_name_segment {
-                 use_signature.push_str(&format!(" as {}", name_attr));
-            }
-        }
-        use_signature.push(';');
-        output.push_str(&use_signature);
-        output.push_str("\n```\n\n");
-    }
-}
-
 
 pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data: &Crate, level: usize) {
     let item = resolved_info.original_item;
@@ -257,6 +166,7 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
     let display_name_opt = resolved_info.effective_name.as_ref().or(item.name.as_ref());
     let item_kind_str = get_item_kind_string(&item.inner);
 
+    // Standardized Heading Logic
     if let Some(display_name) = display_name_opt {
         if let Some(canonical_path) = &resolved_info.reexport_source_canonical_path {
             output.push_str(&format!(
@@ -264,13 +174,11 @@ pub fn process_item(output: &mut String, resolved_info: &ResolvedItemInfo, data:
                 heading_prefix, item_kind_str, display_name, canonical_path
             ));
         } else {
-            if let ItemEnum::Module(_) = &item.inner {
-                 output.push_str(&format!("## Module `{}`\n\n", display_name));
-            } else {
-                 output.push_str(&format!("{} {} `{}`\n\n", heading_prefix, item_kind_str, display_name));
-            }
+            // Treat all items equally for headings
+            output.push_str(&format!("{} {} `{}`\n\n", heading_prefix, item_kind_str, display_name));
         }
     } else {
+        // Handle nameless items like impls
         match &item.inner {
             ItemEnum::Impl(impl_details) => {
                 if let Some(trait_) = &impl_details.trait_ {
