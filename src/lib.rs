@@ -1587,7 +1587,10 @@ fn process_struct_details(output: &mut String, struct_: &Struct, data: &Crate, l
                 "{} Trait Implementations\n\n",
                 "#".repeat(std::cmp::min(heading_level + 1, 6))
             ));
-            for (trait_name, impls) in trait_impls {
+            // Sort trait implementations alphabetically for deterministic output
+            let mut sorted_trait_impls: Vec<_> = trait_impls.into_iter().collect();
+            sorted_trait_impls.sort_by(|a, b| a.0.cmp(&b.0));
+            for (trait_name, impls) in sorted_trait_impls {
                 output.push_str(&format!("- **{}**\n", trait_name));
                 for &impl_id in &impls {
                     if let Some(impl_item) = data.index.get(&impl_id) {
@@ -1815,7 +1818,10 @@ fn process_enum_details(output: &mut String, enum_: &Enum, data: &Crate, level: 
                 "{} Trait Implementations\n\n",
                 "#".repeat(trait_impl_level)
             ));
-            for (trait_name, impls) in trait_impls {
+            // Sort trait implementations alphabetically for deterministic output
+            let mut sorted_trait_impls: Vec<_> = trait_impls.into_iter().collect();
+            sorted_trait_impls.sort_by(|a, b| a.0.cmp(&b.0));
+            for (trait_name, impls) in sorted_trait_impls {
                 output.push_str(&format!("- **{}**\n", trait_name));
                 for &impl_id in &impls {
                     if let Some(impl_item) = data.index.get(&impl_id) {
@@ -1951,7 +1957,10 @@ fn process_union_details(output: &mut String, union_: &Union, data: &Crate, leve
                 "{} Trait Implementations\n\n",
                 "#".repeat(trait_impl_level)
             ));
-            for (trait_name, impls) in trait_impls {
+            // Sort trait implementations alphabetically for deterministic output
+            let mut sorted_trait_impls: Vec<_> = trait_impls.into_iter().collect();
+            sorted_trait_impls.sort_by(|a, b| a.0.cmp(&b.0));
+            for (trait_name, impls) in sorted_trait_impls {
                 output.push_str(&format!("- **{}**\n", trait_name));
                 for &impl_id in &impls {
                     if let Some(impl_item) = data.index.get(&impl_id) {
