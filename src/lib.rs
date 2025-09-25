@@ -1,5 +1,9 @@
-pub mod rustdoc_json_types;
-use rustdoc_json_types::*;
+use rustdoc_types::{
+    Abi, AssocItemConstraintKind, Crate, Enum, GenericArg, GenericArgs, GenericBound,
+    GenericParamDefKind, Generics, Id, Impl, Item, ItemEnum, MacroKind, Module,
+    PreciseCapturingArg, Struct, StructKind, Term, Trait, TraitBoundModifier, Type, Union,
+    VariantKind, Visibility, WherePredicate,
+};
 
 pub fn rustdoc_json_to_markdown(data: Crate) -> String {
     let mut output = String::new();
@@ -243,7 +247,7 @@ fn process_item(output: &mut String, item: &Item, data: &Crate, level: usize) {
     if !item.attrs.is_empty() {
         output.push_str("**Attributes:**\n\n");
         for attr in &item.attrs {
-            output.push_str(&format!("- `{}`\n", attr));
+            output.push_str(&format!("- `{:?}`\n", attr));
         }
         output.push('\n');
     }
@@ -1113,10 +1117,12 @@ fn format_generic_args(output: &mut String, args: &GenericArgs, data: &Crate) {
                 output.push_str(&constraint.name.to_string());
 
                 // Format constraint args if present
-                let mut args_str = String::new();
-                format_generic_args(&mut args_str, &constraint.args, data);
-                if !args_str.is_empty() && args_str != "<>" {
-                    output.push_str(&args_str);
+                if let Some(args) = &constraint.args {
+                    let mut args_str = String::new();
+                    format_generic_args(&mut args_str, &args, data);
+                    if !args_str.is_empty() && args_str != "<>" {
+                        output.push_str(&args_str);
+                    }
                 }
 
                 match &constraint.binding {
@@ -1417,10 +1423,12 @@ fn format_type(ty: &Type, data: &Crate) -> String {
 
             output.push_str(&format!(">::{}", name));
 
-            let mut args_str = String::new();
-            format_generic_args(&mut args_str, args, data);
-            if args_str != "<>" && !args_str.is_empty() {
-                output.push_str(&args_str);
+            if let Some(args) = args {
+                let mut args_str = String::new();
+                format_generic_args(&mut args_str, args, data);
+                if args_str != "<>" && !args_str.is_empty() {
+                    output.push_str(&args_str);
+                }
             }
         }
     }
