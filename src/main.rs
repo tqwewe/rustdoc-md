@@ -1,7 +1,8 @@
 use std::{fs, io, path::PathBuf};
 
 use clap::Parser;
-use rustdoc_md::{rustdoc_json_to_markdown, rustdoc_json_types::Crate};
+use rustdoc_types::Crate;
+use rustdoc_md::{rustdoc_json_to_markdown};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
