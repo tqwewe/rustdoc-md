@@ -21,9 +21,16 @@ Convert Rust documentation JSON into clean, organized Markdown.
 cargo install rustdoc-md
 ```
 
-## Usage
+## Usage with Docs.rs
 
-### Step 1: Generate JSON documentation
+```bash
+$ rustdoc-md --crate-name kameo --output kameo.md
+successfully wrote to file kameo.md
+```
+
+### Usage with Local Crate
+
+#### Step 1: Generate JSON documentation
 
 The JSON output format is currently a nightly-only feature, but you can use it on stable Rust with the `RUSTC_BOOTSTRAP=1` environment variable:
 
@@ -37,7 +44,7 @@ RUSTC_BOOTSTRAP=1 RUSTDOCFLAGS="-Z unstable-options --output-format json" cargo 
 
 This will generate JSON documentation in your `target/doc` directory.
 
-### Step 2: Convert to Markdown using CLI
+#### Step 2: Convert to Markdown using CLI
 
 ```bash
 rustdoc-md --path target/doc/your_crate.json --output api_docs.md
